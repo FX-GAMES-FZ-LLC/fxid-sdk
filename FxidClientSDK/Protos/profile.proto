@@ -1,0 +1,141 @@
+syntax = "proto3";
+
+option csharp_namespace = "FxidProfile";
+
+package fxidprofile;
+
+
+enum BrowserType {
+  INTERNAL = 0;  // Internal browser within the application
+  EXTERNAL = 1;  // External browser (e.g., system default browser)
+  STEAM = 2;     // Steam browser
+  REFRESH = 3;     // Refresh profile on success
+}
+
+message Url {
+  string address = 1;                     // The actual URL address
+  BrowserType preferred_browser = 2;      // The preferred browser type for this URL
+}
+
+service ProfileService {
+  rpc GetProfile (ProfileRequest) returns (ProfileResponse);
+}
+
+message ProfileRequest {
+  string gameAccessToken = 1;  // Token used to authenticate and access the game profile
+}
+
+message ProfileResponse {
+  User user = 1;                        // User information
+  Features features = 2;                // Available features for the user
+  int64 expirationTimestamp = 3;        // Timestamp when the profile data expires
+  int64 serverTimestamp = 4;            // Current server timestamp
+  Url refreshUrl = 5;                   // URL to refresh the profile data
+}
+
+message User {
+  int64 fxid = 1;      // Unique identifier for the user
+  string login = 2;    // User's email address
+  string token = 3;    // Authentication token for the user
+}
+
+message Features {
+  LoginFeature login = 1;       // Login-related features
+  StoreFeature store = 2;       // Store-related features
+  AnnounceFeature announce = 3; // Announcement features
+  TagsFeature tags = 4;         // User tags features
+  StatFeature stats = 5;         // User stats features
+  RemoteConfigFeature config = 6;         // User stats features
+  MaintenanceFeature maintenance = 7;         // User stats features
+  UpdateFeature update = 8;     // Update-related features
+}
+
+message LoginFeature {
+  Url url = 1;                      // URL for the login page or API
+  ConnectedProviders connected = 2; // Information about connected provider accounts
+}
+message MaintenanceFeature
+{
+  bool maintenanceMode = 1;  // Indicates whether the application is in maintenance mode
+  int32 startAt = 2;         // Unix timestamp for the start of maintenance period
+  int32 endsAt = 3;          // Unix timestamp for the end of maintenance period
+  bool isBan = 4;            // Indicates if this is a ban rather than regular maintenance
+  string reason = 5;         // Description of the maintenance or ban reason
+  Url infoPage = 6;          // URL to a page with more information about the maintenance or ban
+}
+
+message UpdateFeature
+{
+  int64 versionId = 1;       // 10001 If client have a lower version - ask user user to update  
+  int64 versionName = 2;     // 1.00.1-SuperHeroes   
+  Url whatsNew = 3;          // whats new page
+  Url updateLink = 4;        // URL to download the update
+}
+
+message StatFeature {
+  Url bulkApi = 1;                     // Api getting events as post json with batch of events 
+  Url getApi = 2;                      // simple get api, just replace NAME and VALUE with our data to send 
+  string sentryDomain = 3;             //  sentry domain for your client 
+}
+message RemoteConfigFeature {
+  int64 updateAt = 1;         // Timestamp of the last update to the remote configuration
+  string abTestGroup = 2;    // A/B testing group identifier for the user
+  repeated RemoteConfigValue values = 3;  // List of configuration values
+}
+
+message RemoteConfigValue {
+  string key = 1;          // Key for the configuration item
+  string string = 2;  // String value for configuration items (e.g., text-based settings)
+  string json = 3;    // JSON-formatted string for complex configuration data structures
+  int64  int  = 4;    // Integer value for numeric configuration items
+}
+
+
+message TagsFeature {
+  map<string, Tag> tags = 1;  // Map of tag identifiers to Tag objects
+}
+
+message Tag {
+  string display_name = 1;  // Human-readable name for the tag
+  string value = 2;         // The actual value or content of the tag
+  int64 counter = 3;        // A counter associated with the tag (e.g., for frequency or importance)
+}
+
+message ConnectedProviders {
+  string google = 1;     // Google account connection status or identifier
+  string facebook = 2;   // Facebook account connection status or identifier
+  string vk = 3;         // VK account connection status or identifier
+  string apple = 4;      // Apple account connection status or identifier
+  string microsoft = 5;  // Microsoft account connection status or identifier
+  string twitter = 6;    // Twitter account connection status or identifier
+  string github = 7;     // GitHub account connection status or identifier
+  string linkedin = 8;   // LinkedIn account connection status or identifier
+  string amazon = 9;     // Amazon account connection status or identifier
+  string steam = 10;     // Steam account connection status or identifier
+}
+
+message StoreFeature {
+  Url url = 1;                           // URL for the store page or API
+  map<string, Product> products = 2;     // Map of product identifiers to Product objects
+}
+
+message Product {
+  string currency = 1;    // The currency code for the product price (e.g., USD, EUR)
+  string price = 2;       // The price of the product in the specified currency
+  string usd_price = 3;   // The price of the product in USD for easy comparison
+  Url url = 4;            // The URL to the product's page in the store
+  string jpeg = 5;        // URL or path to the product's image in JPEG format
+}
+
+message AnnounceFeature {
+  repeated AnnounceItem items = 1;  // A list of announce items to be displayed
+  Url set_seen_url = 2;             // URL to call when marking announce items as seen
+}
+
+message AnnounceItem {
+  string title = 1;          // The title of the announce item
+  string markdown_text = 2;  // The content of the announce item in Markdown format
+  Url url = 3;               // URL to the full announcement or related content
+  bool seen = 4;             // Indicates whether the user has already seen this item
+  bool flash = 5;            // If true, this item should be highlighted or given special attention
+}

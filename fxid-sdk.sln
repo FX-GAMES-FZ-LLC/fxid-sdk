@@ -1,0 +1,28 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FxidServerEmulator", "FxidServerEmulator\FxidServerEmulator.csproj", "{A83C1B91-CC68-468B-B6B9-B6DE85DF2C8A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FxidClientSDK", "FxidClientSDK\FxidClientSDK.csproj", "{6C1E65C8-8D7D-4E51-A659-22235CDADE0F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SampleConsoleGameWithFxid", "SampleConsoleGameWithFxid\SampleConsoleGameWithFxid.csproj", "{14A809D2-EFA1-45FF-971E-0729E5F76397}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{A83C1B91-CC68-468B-B6B9-B6DE85DF2C8A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A83C1B91-CC68-468B-B6B9-B6DE85DF2C8A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A83C1B91-CC68-468B-B6B9-B6DE85DF2C8A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A83C1B91-CC68-468B-B6B9-B6DE85DF2C8A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6C1E65C8-8D7D-4E51-A659-22235CDADE0F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6C1E65C8-8D7D-4E51-A659-22235CDADE0F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6C1E65C8-8D7D-4E51-A659-22235CDADE0F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6C1E65C8-8D7D-4E51-A659-22235CDADE0F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{14A809D2-EFA1-45FF-971E-0729E5F76397}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{14A809D2-EFA1-45FF-971E-0729E5F76397}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{14A809D2-EFA1-45FF-971E-0729E5F76397}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{14A809D2-EFA1-45FF-971E-0729E5F76397}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
