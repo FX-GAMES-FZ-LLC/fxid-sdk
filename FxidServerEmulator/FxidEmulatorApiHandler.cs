@@ -292,42 +292,86 @@ namespace fxid_server_emulator
                     Login = $"user{new Random(userId.GetHashCode()).Next(1000, 9999):D4}@example.com",
                     Token = token
                 },
-                Features = new Features
+                Features = new Features {
+                Store = new StoreFeature
                 {
-                    Store = new StoreFeature
+                    Url = new Url
                     {
-                        Url = new Url
-                        {
-                            Address = $"http://localhost:{port}/static/shop.html?token={token}",
-                            PreferredBrowser = BrowserType.Internal
-                        },
-                        Products = 
-                        {
-                            ["Premium Subscription"] = new Product
-                            {
-                                Currency = "USD",
-                                Price = "9.99",
-                                UsdPrice = "9.99",
-                                Url = new Url
-                                {
-                                    Address = $"http://localhost:{port}/static/buy.html?product=test&token={token}",
-                                    PreferredBrowser = BrowserType.Internal
-                                },
-                                Jpeg = "https://cdn.fxgam.es/static_assets/fxid/images/store/products/pass/icon.png"
-                            },
-                            // ... other products
-                        }
+                        Address = $"http://localhost:{port}/static/shop.html?token={token}",
+                        PreferredBrowser = BrowserType.Internal
                     },
-                    // ... other features (Announce, Tags, Config)
+                    Products = 
+                    {
+                        ["Premium Subscription"] = new Product
+                        {
+                            Currency = "USD",
+                            Price = "9.99",
+                            UsdPrice = "9.99",
+                            Sku = "premium_subscription",
+                            Url = new Url
+                            {
+                                Address = $"http://localhost:{port}/static/buy.html?product=test&token={token}",
+                                PreferredBrowser = BrowserType.Internal
+                            },
+                            Jpeg = "https://cdn.fxgam.es/static_assets/fxid/images/store/products/pass/icon.png"
+                        },
+                        // Add more products here if needed
+                    }
                 },
-                ExpirationTimestamp = DateTimeOffset.UtcNow.AddSeconds(10).ToUnixTimeSeconds(),
-                ServerTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
-                RefreshUrl = new Url
+                Announce = new AnnounceFeature
                 {
-                    Address = $"http://localhost:{port}/launcher?token={token}",
-                    PreferredBrowser = BrowserType.Refresh
+                    SetSeenUrl = new Url
+                    {
+                        Address = $"http://localhost:{port}/set_announce_seen?token={token}",
+                        PreferredBrowser = BrowserType.Internal
+                    },
+                    Items = 
+                    {
+                        new AnnounceItem
+                        {
+                            
+                            Title = "Welcome to FX!",
+                            MarkdownText = "Enjoy your stay and have fun!",
+                            Url = new Url
+                            {
+                                Address = $"http://localhost:{port}/static/daily.html?id=1&token={token}",
+                                PreferredBrowser = BrowserType.Internal
+                            }
+                            
+                        }
+                        
+                    }
+                },
+                Tags = new TagsFeature
+                {
+                    Tags = 
+                    {
+                        ["new_user"] = new Tag { DisplayName = "New User", Value = "true", Counter = 1 },
+                        ["account_type"] = new Tag { DisplayName = "Account Type", Value = "standard", Counter = 1 }
+                        // Add more tags here if needed
+                    }
+                },
+                Config = new RemoteConfigFeature
+                {
+                    UpdateAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+                    AbTestGroup = "default",
+                    Values = 
+                    {
+                        new RemoteConfigValue { Key = "enable_feature_x", String = "true" },
+                        new RemoteConfigValue { Key = "max_sessions", Int = 5 },
+                        new RemoteConfigValue { Key = "theme", String = "dark" }
+                        // Add more configuration items here if needed
+                    }
                 }
-            };
+            },
+            ExpirationTimestamp = DateTimeOffset.UtcNow.AddSeconds(10).ToUnixTimeSeconds(),
+            ServerTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+            RefreshUrl = new Url
+            {
+                Address = $"http://localhost:{port}/launcher?token={token}",
+                PreferredBrowser = BrowserType.Refresh
+            }
+        };
 
             // Save the default ProfileResponse to file
             SaveProfileResponseToFile(profileResponse);
