@@ -10,8 +10,11 @@ namespace fxid_server_emulator
     public class ServerOptions
     {
         public int Port { get; set; } = 5001;
-        public string ClientBinaryPath { get; set; }
-        public string ClientBinaryArgs { get; set; }
+        
+        public IntegrationStatusStorage status { get; set; } = new IntegrationStatusStorage();
+        public string ClientBinaryPath { get; set; } = "dotnet"; // Replace with your actual client binary path
+        public string ClientBinaryArgs { get; set; } = "run --project SampleConsoleGameWithFxid/SampleConsoleGameWithFxid.csproj";
+        public string UserToken { get; set; }
         public string GameServerUrl { get; set; } = "http://localhost:8080";
         private string _jwtSecret = GenerateDefaultJwtSecret();
         public int UserId { get; set; } = 100;
@@ -62,38 +65,62 @@ namespace fxid_server_emulator
             string jwtToken = GenerateJwtToken(options.UserId, options.JwtSecret);
             string url = $"http://localhost:{options.Port}/";
 
-            // Start the client binary
-            if (!string.IsNullOrEmpty(options.ClientBinaryPath))
-            {
-                string launcherUrl = $"{url}launcher?token={jwtToken}";
-                string processArgs = $"{options.ClientBinaryArgs} --fxid {launcherUrl}";
-                ProcessStartInfo startInfo = new ProcessStartInfo
-                {
-                    FileName = options.ClientBinaryPath,
-                    Arguments = processArgs,
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true
-                };
-                Process process = new Process { StartInfo = startInfo };
-                process.Start();
-                Console.WriteLine($"Client binary started. {options.ClientBinaryPath} {processArgs}");
-            }
-            else
+            // // Start the client binary
+            // if (!string.IsNullOrEmpty(options.ClientBinaryPath))
+            // {
+            //     string launcherUrl = $"{url}launcher?token={jwtToken}";
+            //     string processArgs = $"{options.ClientBinaryArgs} --fxid {launcherUrl}";
+            //     ProcessStartInfo startInfo = new ProcessStartInfo
+            //     {
+            //         FileName = options.ClientBinaryPath,
+            //         Arguments = processArgs,
+            //         UseShellExecute = false,
+            //         RedirectStandardOutput = true,
+            //         RedirectStandardError = true
+            //     };
+            //     Process process = new Process { StartInfo = startInfo };
+            //     
+            //     // Set up event handlers for output and error streams
+            //     process.OutputDataReceived += (sender, e) => {
+            //         if (!string.IsNullOrEmpty(e.Data))
+            //         {
+            //             Console.WriteLine($"Client binary: {e.Data}");
+            //             options.status.SetFeatureStatus(Feature.ClientBinary, e.Data,true, null);
+            //         }
+            //     };
+            //     
+            //     process.ErrorDataReceived += (sender, e) => {
+            //         if (!string.IsNullOrEmpty(e.Data))
+            //         {
+            //             Console.WriteLine($"Client error: {e.Data}");
+            //             options.status.SetFeatureStatus(Feature.ClientBinary, e.Data,false, null);
+            //         }
+            //     };
+            //     
+            //     process.Start();
+            //     
+            //     // Begin asynchronous reading of the output and error streams
+            //     process.BeginOutputReadLine();
+            //     process.BeginErrorReadLine();
+            //     
+            //     Console.WriteLine($"Client binary started. {options.ClientBinaryPath} {processArgs}");
+            // }
+            // else
             {
                 Console.WriteLine(
                     $"Start client binary using the provided URL line: mygame.exe --fxid {url}launcher?token={jwtToken}");
             }
+            options.UserToken = jwtToken;
 
             using (var listener = new HttpListener())
             {
                 listener.Prefixes.Add(url);
                 listener.Start();
-                Console.WriteLine($"Listening on {url}");
+                Console.WriteLine($"Listening on {url}static/index.html");
 
                 while (true)
                 {
-                    Console.WriteLine($"Ready");
+                   
                     HttpListenerContext context = await listener.GetContextAsync();
                     // Process the request asynchronously
                     _ = Task.Run(() => ProcessRequestAsync(context, options));
@@ -130,6 +157,18 @@ namespace fxid_server_emulator
 
                 if (localPath.StartsWith("/static/"))
                 {
+                    if (localPath.StartsWith("/static/shop.html"))
+                    {
+                        options.status.SetFeatureStatus(Feature.ShopBuy, "Shop page accessed", true, localPath);
+                    }
+                    else if (localPath.StartsWith("/static/daily.html"))
+                    {
+                        options.status.SetFeatureStatus(Feature.DailyOffer, "DailyOffer page accessed", true, localPath);
+                    }
+                    else if (localPath.StartsWith("/static/buy.html"))
+                    {
+                        options.status.SetFeatureStatus(Feature.ShopBuy, "Buy page accessed", true, localPath);
+                    }
                     await ServeStaticFile(context, localPath);
                 }
                 else

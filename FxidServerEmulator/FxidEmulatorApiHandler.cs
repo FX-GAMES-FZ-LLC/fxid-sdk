@@ -19,13 +19,21 @@ namespace fxid_server_emulator
         public static (byte[] responseString, int statusCode, string contentType) ValidateTokenAndGenerateResponse(
             string token, ServerOptions options, string path, bool binaryRequest, string product, HttpListenerRequest request)
         {
-            if (string.IsNullOrEmpty(token))
-            {
-                return (Encoding.UTF8.GetBytes("Invalid or missing token"), 400, "text/plain");
-            }
-
+           
             try
             {
+                if (path == "/info")
+                {
+                    // return options as JSON
+                    var jsonResponse = JsonConvert.SerializeObject(options, Formatting.Indented);
+                    return (Encoding.UTF8.GetBytes(jsonResponse), 200, "application/json");
+                }
+                if (string.IsNullOrEmpty(token))
+                {
+                    options.status.SetFeatureStatus(Feature.ProfileRefresh,"Missing token", false, "Please provide a token");
+                    return (Encoding.UTF8.GetBytes("Invalid or missing token"), 400, "text/plain");
+                }
+
                 var tokenHandler = new JwtSecurityTokenHandler();
                 var key = Encoding.ASCII.GetBytes(options.JwtSecret);
                 var validationParameters = new TokenValidationParameters
@@ -43,6 +51,8 @@ namespace fxid_server_emulator
                 if (path == "/launcher")
                 {
                     var profileResponse = CreateRandomProfileResponseFromUserId(userIdFromToken, token, options.Port);
+                    
+                    options.status.SetFeatureStatus(Feature.ProfileRefresh,path, true, "Success login");
 
                     if (binaryRequest)
                     {
@@ -62,6 +72,7 @@ namespace fxid_server_emulator
                 {
                     if (string.IsNullOrEmpty(product))
                     {
+                        options.status.SetFeatureStatus(Feature.ShopBuy,path, false, "Product parameter is missing");
                         return (Encoding.UTF8.GetBytes("Product parameter is missing"), 400, "application/json");
                     }
 
@@ -153,21 +164,27 @@ namespace fxid_server_emulator
 
                 if (response.IsSuccessStatusCode)
                 {
+                    options.status.SetFeatureStatus(Feature.ShopBuy,"Delivery success", true, responseContent);
                     return JObject.Parse(responseContent);
                 }
                 else
                 {
+                    var errorResponse =
+                        $"Failed to deliver product to {options.GameServerUrl}. Status code: {response.StatusCode}";
+                    options.status.SetFeatureStatus(Feature.ShopBuy,errorResponse, false, responseContent);
                     return new JObject
                     {
                         ["success"] = false,
-                        ["error"] =
-                            $"Failed to deliver product to {options.GameServerUrl}. Status code: {response.StatusCode}",
+                        ["error"] =errorResponse
+                            ,
                         ["details"] = responseContent
                     };
                 }
             }
             catch (Exception ex)
             {
+                
+                options.status.SetFeatureStatus(Feature.ShopBuy,"Failed to deliver product", false, ex.Message);
                 return new JObject
                 {
                     ["success"] = false,

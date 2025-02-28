@@ -1,20 +1,26 @@
 ﻿using FxidProfile;
 
+
 class Program
 {
     static int width = 10;
     static int height = 20;
     static int score = 0;
-    static bool[,] grid;
-    static List<int[]> currentPiece;
+    static bool[,] grid = new bool[20, 10]; // Initialize with default size
+    static List<int[]> currentPiece = new List<int[]>(); // Initialize empty list
     static int currentX, currentY;
     static bool gameOver = false;
-    private static FxidClientSDK.SDK.FxidClientSDK sdk;
-
+    private static FxidClientSDK.SDK.FxidClientSDK sdk = new FxidClientSDK.SDK.FxidClientSDK(false);
     static void Main(string[] args)
     {
+        Console.WriteLine("Starting Tetris...");
+        
         sdk = new FxidClientSDK.SDK.FxidClientSDK(false);
+        Console.WriteLine($"Initializing SDK...");
         sdk.Initialize();
+        // clean console 
+        Console.Clear();
+        Console.CursorVisible = false;
 
         while (true)
         {
@@ -58,7 +64,7 @@ class Program
             Console.Write("Select an option: ");
 
 
-            string choice = Console.ReadLine();
+            string? choice = Console.ReadLine();
 
             switch (choice)
             {
