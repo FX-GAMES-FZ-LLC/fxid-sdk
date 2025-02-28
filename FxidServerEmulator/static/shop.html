@@ -37,18 +37,18 @@
         fetch(`/launcher?token=${token}`)
             .then(response => response.json())
             .then(data => {
-                const products = data.Features.Store.Products;
+                const products = data.features.store.products;
                 const productsContainer = document.getElementById('products-container');
                 
                 Object.entries(products).forEach(([productName, productDetails]) => {
                     const productCard = `
                         <div class="col-md-4 product-card">
                             <div class="card">
-                                <img src="${productDetails.Jpeg}" class="card-img-top" alt="${productName}">
+                                <img src="${productDetails.jpeg}" class="card-img-top" alt="${productName}">
                                 <div class="card-body">
                                     <h5 class="card-title">${productName}</h5>
-                                    <p class="card-text">Price: ${productDetails.Currency} ${productDetails.Price}</p>
-                                    <button class="btn btn-primary" onclick="buyProduct('${productName}', '${productDetails.Url.Address}')">Buy</button>
+                                    <p class="card-text">Price: ${productDetails.currency} ${productDetails.price}</p>
+                                    <button class="btn btn-primary" onclick="buyProduct('${productName}', '${productDetails.url.address}')">Buy</button>
                                 </div>
                             </div>
                         </div>

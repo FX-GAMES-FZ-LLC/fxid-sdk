@@ -10,8 +10,8 @@ namespace fxid_server_emulator
     public class ServerOptions
     {
         public int Port { get; set; } = 5001;
-        public string ClientBinaryPath { get; set; } 
-        public string ClientBinaryArgs { get; set; } 
+        public string ClientBinaryPath { get; set; }
+        public string ClientBinaryArgs { get; set; }
         public string GameServerUrl { get; set; } = "http://localhost:8080";
         private string _jwtSecret = GenerateDefaultJwtSecret();
         public int UserId { get; set; } = 100;
@@ -22,11 +22,12 @@ namespace fxid_server_emulator
             set => _jwtSecret = EnsureMinimumKeyLength(value);
         }
 
-         private static string GenerateDefaultJwtSecret()
-                {
-                    // Return a fixed, Base64 encoded secret
-                    return Convert.ToBase64String(Encoding.UTF8.GetBytes("ThisIsAFixedSecretForTestingPurposesOnly"));
-                }
+        private static string GenerateDefaultJwtSecret()
+        {
+            // Return a fixed, Base64 encoded secret
+            return Convert.ToBase64String(Encoding.UTF8.GetBytes("ThisIsAFixedSecretForTestingPurposesOnly"));
+        }
+
         private static string EnsureMinimumKeyLength(string secret)
         {
             byte[] keyBytes = Encoding.UTF8.GetBytes(secret);
@@ -45,7 +46,7 @@ namespace fxid_server_emulator
         {
             var options = ParseCommandLineArgs(args);
             Console.WriteLine($"JWT SECRET: {options.JwtSecret}");
-            
+
             if (options.UserId == 0)
             {
                 Console.Write("Enter user_id (integer): ");
@@ -54,6 +55,7 @@ namespace fxid_server_emulator
                     Console.WriteLine("Invalid user_id. Please enter an integer.");
                     return;
                 }
+
                 options.UserId = userId;
             }
 
@@ -79,7 +81,8 @@ namespace fxid_server_emulator
             }
             else
             {
-                Console.WriteLine($"Start client binary using the provided URL line: mygame.exe --fxid {url}launcher?token={jwtToken}");
+                Console.WriteLine(
+                    $"Start client binary using the provided URL line: mygame.exe --fxid {url}launcher?token={jwtToken}");
             }
 
             using (var listener = new HttpListener())
@@ -102,43 +105,47 @@ namespace fxid_server_emulator
         {
             HttpListenerRequest request = context.Request;
             HttpListenerResponse response = context.Response;
-            
+
             try
             {
-                if (request.HttpMethod == "GET")
-                {
-                    string? token = request.QueryString["token"];
-                    string? product = request.QueryString["product"];
-                    string localPath = request.Url?.LocalPath ?? string.Empty;
-                    string acceptHeader = request.Headers["Accept"] ?? "Not specified";
-                    bool isBinary = acceptHeader.Contains("application/x-protobuf");
-                    // Console.WriteLine($"Request details:");
-                    // Console.WriteLine($"  Method: {request.HttpMethod}");
-                    // Console.WriteLine($"  Path: {localPath}");
-                    // Console.WriteLine($"  Token: {token}");
-                    // Console.WriteLine($"  Content-Type: {contentType ?? "Not specified"}");
-                    // Console.WriteLine($"  Accept: {acceptHeader}");
-                    // Console.WriteLine($"  Is Binary: {isBinary}");
-                    // Console.WriteLine($"Got request binary? {isBinary} / {contentType}: {request.HttpMethod} {localPath} with token {token}");
+                string? token = null;
+                
+                // Try to get token from query string
+                token = request.QueryString["token"];
 
-                    if (localPath.StartsWith("/static/"))
+                // If token is not in query string, try to get it from Authorization header
+                if (string.IsNullOrEmpty(token))
+                {
+                    string? authHeader = request.Headers["Authorization"];
+                    if (!string.IsNullOrEmpty(authHeader) && authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
                     {
-                        await ServeStaticFile(context, localPath);
+                        token = authHeader.Substring("Bearer ".Length).Trim();
                     }
-                    else
-                    {
-                        var (buffer, statusCode, contentTypeResponse) = FxidEmulatorApiHandler.ValidateTokenAndGenerateResponse(
+                }
+
+                string? product = request.QueryString["product"];
+                string localPath = request.Url?.LocalPath ?? string.Empty;
+                string acceptHeader = request.Headers["Accept"] ?? "Not specified";
+                bool isBinary = acceptHeader.Contains("application/x-protobuf");
+
+                if (localPath.StartsWith("/static/"))
+                {
+                    await ServeStaticFile(context, localPath);
+                }
+                else
+                {
+                    var (buffer, statusCode, contentTypeResponse) =
+                        FxidEmulatorApiHandler.ValidateTokenAndGenerateResponse(
                             token,
                             options,
-                            localPath,isBinary
-                            ,product);
+                            localPath, isBinary
+                            , product,request);
 
-                        response.StatusCode = statusCode;
-                        response.ContentType = contentTypeResponse;
-                        //byte[] buffer = Encoding.UTF8.GetBytes(responseString);
-                        response.ContentLength64 = buffer.Length;
-                        await response.OutputStream.WriteAsync(buffer, 0, buffer.Length);
-                    }
+                    response.StatusCode = statusCode;
+                    response.ContentType = contentTypeResponse;
+                    //byte[] buffer = Encoding.UTF8.GetBytes(responseString);
+                    response.ContentLength64 = buffer.Length;
+                    await response.OutputStream.WriteAsync(buffer, 0, buffer.Length);
                 }
             }
             catch (Exception ex)
@@ -207,13 +214,12 @@ namespace fxid_server_emulator
                         if (i + 1 < args.Length)
                             options.UserId = Convert.ToInt32(args[++i]);
                         break;
-
-                    
                 }
             }
-        
+
             return options;
         }
+
         private static async Task ServeStaticFile(HttpListenerContext context, string localPath)
         {
             string staticFolderPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "static");

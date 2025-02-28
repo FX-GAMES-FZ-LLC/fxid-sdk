@@ -1,4 +1,5 @@
 using System.IdentityModel.Tokens.Jwt;
+using System.Net;
 using System.Security.Claims;
 using System.Text;
 using FxidProfile;
@@ -16,7 +17,7 @@ namespace fxid_server_emulator
         private static readonly HttpClient httpClient = new HttpClient();
 
         public static (byte[] responseString, int statusCode, string contentType) ValidateTokenAndGenerateResponse(
-            string token, ServerOptions options, string path, bool binaryRequest, string product = null)
+            string token, ServerOptions options, string path, bool binaryRequest, string product, HttpListenerRequest request)
         {
             if (string.IsNullOrEmpty(token))
             {
@@ -50,13 +51,10 @@ namespace fxid_server_emulator
                     }
                     else
                     {
-                        var jsonSerializerSettings = new JsonSerializerSettings
-                        {
-                            NullValueHandling = NullValueHandling.Include,
-                            DefaultValueHandling = DefaultValueHandling.Include
-                        };
-                        var jsonResponse = JsonConvert.SerializeObject(profileResponse, Formatting.Indented,
-                            jsonSerializerSettings);
+                        var jsonResponse = JsonConvert.SerializeObject(
+                            JsonConvert.DeserializeObject(ConvertProfileResponseToJson(profileResponse)),
+                            Formatting.Indented
+                        );
                         return (Encoding.UTF8.GetBytes(jsonResponse), 200, "application/json");
                     }
                 }
@@ -70,11 +68,62 @@ namespace fxid_server_emulator
                     var purchaseResult = DeliverProductToThirdPartyServer(userIdFromToken, product, options).Result;
                     var jsonResponse = JsonConvert.SerializeObject(purchaseResult);
                     return (Encoding.UTF8.GetBytes(jsonResponse), 200, "application/json");
+                
                 }
+                else if (path == "/update")
+                {
+                    if (request.HttpMethod != "POST")
+                    {
+                        return (Encoding.UTF8.GetBytes("Method Not Allowed"), 405, "text/plain");
+                    }
+
+                    string requestBody;
+                    using (var reader = new StreamReader(request.InputStream, request.ContentEncoding))
+                    {
+                        requestBody = reader.ReadToEnd();
+                    }
+
+                    if (string.IsNullOrEmpty(requestBody))
+                    {
+                        return (Encoding.UTF8.GetBytes("Empty request body"), 400, "application/json");
+                    }
+
+                    try
+                    {
+                       
+
+                        // Update the ProfileResponse with the new data
+                        var profileResponse =  ConvertJsonToProfileResponse(requestBody);
+
+                        // Save the updated ProfileResponse back to the file
+                        SaveProfileResponseToFile(profileResponse);
+                        
+
+                        // Process the update (you can customize this part based on your needs)
+                        var response = new JObject
+                        {
+                            ["success"] = true,
+                            ["message"] = "Profile updated successfully",
+                            ["updatedData"] = ConvertProfileResponseToJson(profileResponse)
+                        };
+
+                        var jsonResponse = JsonConvert.SerializeObject(
+                            JsonConvert.DeserializeObject(ConvertProfileResponseToJson(profileResponse)),
+                            Formatting.Indented
+                        );
+                        return (Encoding.UTF8.GetBytes(jsonResponse), 200, "application/json");
+                    }
+                    catch (JsonException ex)
+                    {
+                        return (Encoding.UTF8.GetBytes($"Invalid JSON: {ex.Message}"), 400, "application/json");
+                    }
+                }
+                
+                
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Invalid token? {ex.Message}");
+                Console.WriteLine($"Invalid token? {ex.Message} {ex.StackTrace}");
                 return (Encoding.UTF8.GetBytes($"Invalid token: {ex.Message}"), 401, "text/plain");
             }
 
@@ -134,13 +183,113 @@ namespace fxid_server_emulator
             string userId = userIdFromToken ?? Guid.NewGuid().ToString();
             var random = new Random(userId.GetHashCode());
 
+            var profileResponse = LoadProfileResponseFromFile();
+            if (profileResponse == null)
+            {
+                profileResponse = CreateDefaultProfileResponse(userId, token, port);
+            }
+            else
+            {
+                // Update dynamic fields
+                profileResponse.User.Fxid = long.Parse(userId);
+                profileResponse.User.Login = $"user{random.Next(1000, 9999):D4}@example.com";
+                profileResponse.User.Token = token;
+                profileResponse.ExpirationTimestamp = DateTimeOffset.UtcNow.AddSeconds(10).ToUnixTimeSeconds();
+                profileResponse.ServerTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                profileResponse.RefreshUrl = new Url
+                {
+                    Address = $"http://localhost:{port}/launcher?token={token}",
+                    PreferredBrowser = BrowserType.Refresh
+                };
 
+                // Update URLs with correct port and token
+                UpdateUrls(profileResponse, port, token);
+            }
+
+            return profileResponse;
+        }
+
+        private static ProfileResponse LoadProfileResponseFromFile()
+        {
+            string filePath = "profile_response.pb";
+            try
+            {
+                if (File.Exists(filePath))
+                {
+                    using (var input = File.OpenRead(filePath))
+                    {
+                        return ProfileResponse.Parser.ParseFrom(input);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error loading ProfileResponse from file: {ex.Message}");
+            }
+            return null;
+        }
+
+        private static void UpdateUrls(ProfileResponse profileResponse, int port, string token)
+        {
+            if (profileResponse == null)
+            {
+                Console.WriteLine("ProfileResponse is null in UpdateUrls method.");
+                return;
+            }
+        
+            // Update Store URL
+            if (profileResponse.Features?.Store?.Url != null)
+            {
+                profileResponse.Features.Store.Url.Address =
+                    profileResponse.Features.Store.Url.Address
+                        = $"http://localhost:{port}/static/shop.html?token={token}";
+            }
+        
+            // Update Product URLs
+            if (profileResponse.Features?.Store?.Products != null)
+            {
+                foreach (var product in profileResponse.Features.Store.Products.Values)
+                {
+                    if (product?.Url != null)
+                    {
+                        product.Url.Address = product.Url.Address
+                            = $"http://localhost:{port}/static/buy.html?product={product.Sku}&token={token}";
+                    }
+                }
+            }
+        
+            // Update Announce SetSeenUrl
+            if (profileResponse.Features?.Announce?.SetSeenUrl != null)
+            {
+                profileResponse.Features.Announce.SetSeenUrl.Address = 
+                    profileResponse.Features.Announce.SetSeenUrl.Address
+                        = $"http://localhost:{port}/set_announce_seen?token={token}";
+            }
+        
+            // Update Announce Item URLs
+            if (profileResponse.Features?.Announce?.Items != null)
+            {
+                foreach (var item in profileResponse.Features.Announce.Items)
+                {
+                    if (item?.Url != null)
+                    {
+                        item.Url.Address = item.Url.Address
+                            .Replace("{port}", port.ToString())
+                            .Replace("{token}", token);
+                    }
+                }
+            }
+        }
+
+        private static ProfileResponse CreateDefaultProfileResponse(string userId, string token, int port)
+        {
+            // Create default ProfileResponse similar to the previous implementation
             var profileResponse = new ProfileResponse
             {
                 User = new User
                 {
                     Fxid = long.Parse(userId),
-                    Login = $"user{random.Next(1000, 9999):D4}@example.com",
+                    Login = $"user{new Random(userId.GetHashCode()).Next(1000, 9999):D4}@example.com",
                     Token = token
                 },
                 Features = new Features
@@ -151,32 +300,25 @@ namespace fxid_server_emulator
                         {
                             Address = $"http://localhost:{port}/static/shop.html?token={token}",
                             PreferredBrowser = BrowserType.Internal
-                        }
-                    },
-                    Announce = new AnnounceFeature
-                    {
-                        SetSeenUrl = new Url
-                        {
-                            Address = $"http://localhost:{port}/set-seen?token={token}",
-                            PreferredBrowser = BrowserType.Internal
                         },
-                        Items = { }
-                    },
-                    Tags = new TagsFeature
-                    {
-                        Tags = { }
-                    },
-                    Config = new RemoteConfigFeature
-                    {
-                        UpdateAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
-                        AbTestGroup = "group_a",
-                        Values =
+                        Products = 
                         {
-                            new RemoteConfigValue { Key = "enable_new_feature", String = "true" },
-                            new RemoteConfigValue { Key = "max_level", Int = 100 }, // max_level
-                            new RemoteConfigValue { Key = "daily_bonus", Int = 50 }, // daily_bonus
+                            ["Premium Subscription"] = new Product
+                            {
+                                Currency = "USD",
+                                Price = "9.99",
+                                UsdPrice = "9.99",
+                                Url = new Url
+                                {
+                                    Address = $"http://localhost:{port}/static/buy.html?product=test&token={token}",
+                                    PreferredBrowser = BrowserType.Internal
+                                },
+                                Jpeg = "https://cdn.fxgam.es/static_assets/fxid/images/store/products/pass/icon.png"
+                            },
+                            // ... other products
                         }
-                    }
+                    },
+                    // ... other features (Announce, Tags, Config)
                 },
                 ExpirationTimestamp = DateTimeOffset.UtcNow.AddSeconds(10).ToUnixTimeSeconds(),
                 ServerTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
@@ -186,58 +328,39 @@ namespace fxid_server_emulator
                     PreferredBrowser = BrowserType.Refresh
                 }
             };
-            // Populate the Products
-            profileResponse.Features.Store.Products.Add("Premium Subscription", new Product
-            {
-                Currency = "USD",
-                Price = "9.99",
-                UsdPrice = "9.99",
-                Url = new Url
-                {
-                    Address = $"http://localhost:{port}/static/buy.html?product=test&token={token}",
-                    PreferredBrowser = BrowserType.Internal
-                },
-                Jpeg = "https://cdn.fxgam.es/static_assets/fxid/images/store/products/pass/icon.png"
-            });
 
-            profileResponse.Features.Store.Products.Add("Coins Pack 100", new Product
-            {
-                Currency = "USD",
-                Price = "4.99",
-                UsdPrice = "4.99",
-                Url = new Url
-                {
-                    Address = $"http://localhost:{port}/static/buy.html?product=test&token={token}",
-                    PreferredBrowser = BrowserType.Internal
-                },
-                Jpeg = "https://cdn.fxgam.es/static_assets/fxid/images/store/products/redmin/icon.png"
-            });
+            // Save the default ProfileResponse to file
+            SaveProfileResponseToFile(profileResponse);
 
-            profileResponse.Features.Store.Products.Add("Character Skin Rare", new Product
-            {
-                Currency = "USD",
-                Price = "2.99",
-                UsdPrice = "2.99",
-                Url = new Url
-                {
-                    Address = $"http://localhost:{port}/static/buy.html?product=test&token={token}",
-                    PreferredBrowser = BrowserType.Internal
-                },
-                Jpeg = "https://cdn.fxgam.es/static_assets/fxid/images/store/products/pass/icon.png"
-            });
-            profileResponse.Features.Announce.Items.Add(new AnnounceItem
-            {
-                Title = "Daily Reward",
-                MarkdownText = "Congratulations! *You've earned a daily reward!*",
-                Url = new Url
-                {
-                    Address = $"http://localhost:{port}/static/daily.html?token={token}",
-                    PreferredBrowser = BrowserType.Internal
-                },
-                Seen = false,
-                Flash = true
-            });
             return profileResponse;
         }
+
+        private static void SaveProfileResponseToFile(ProfileResponse profileResponse)
+        {
+            string filePath = "profile_response.pb";
+            try
+            {
+                using (var output = File.Create(filePath))
+                {
+                    profileResponse.WriteTo(output);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error saving ProfileResponse to file: {ex.Message}");
+            }
+        }
+        private static ProfileResponse ConvertJsonToProfileResponse(string jsonString)
+        {
+            var jsonParser = new Google.Protobuf.JsonParser(Google.Protobuf.JsonParser.Settings.Default.WithIgnoreUnknownFields(true));
+            return jsonParser.Parse<ProfileResponse>(jsonString);
+        }
+
+        private static string ConvertProfileResponseToJson(ProfileResponse profileResponse)
+        {
+            var jsonFormatter = new Google.Protobuf.JsonFormatter(Google.Protobuf.JsonFormatter.Settings.Default);
+            return jsonFormatter.Format(profileResponse);
+        }
     }
+    
 }

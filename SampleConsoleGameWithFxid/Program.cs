@@ -29,7 +29,10 @@ class Program
                 continue;
             }
             
-            if (profileResponse.Features.Announce.Items.Count > 0 && profileResponse.Features.Announce.Items.Any(a => !a.Seen))
+            if (profileResponse.Features.Announce != null && 
+                profileResponse.Features.Announce.Items != null && 
+                profileResponse.Features.Announce.Items.Count > 0 && 
+                profileResponse.Features.Announce.Items.Any(a => !a.Seen))
             {
                 Console.WriteLine("Announcements:");
                 foreach (var announcement in profileResponse.Features.Announce.Items.Where(a => !a.Seen))

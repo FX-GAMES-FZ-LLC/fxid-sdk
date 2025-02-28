@@ -125,6 +125,7 @@ message Product {
   string usd_price = 3;   // The price of the product in USD for easy comparison
   Url url = 4;            // The URL to the product's page in the store
   string jpeg = 5;        // URL or path to the product's image in JPEG format
+  string sku = 6;        // URL or path to the product's image in JPEG format
 }
 
 message AnnounceFeature {

@@ -398,3 +398,6 @@ FodyWeavers.xsd
 
 # JetBrains Rider
 *.sln.iml
+FxidServerEmulator/.DS_Store
+FxidClientSDK/.DS_Store
+.DS_Store
