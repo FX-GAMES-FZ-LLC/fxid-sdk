@@ -26,21 +26,30 @@ public class FxidClientSDK
     }
 
     // Add methods for SDK functionality
-    public void Initialize()
+    public void Initialize(string connectionString = null)
     {
-        // Retrieve connection string from process start arguments
-        string[] args = Environment.GetCommandLineArgs();
-        int index = Array.IndexOf(args, "--fxid");
-
-        if (index != -1 && index < args.Length - 1)
+        if (string.IsNullOrEmpty(connectionString))
         {
-            _connectionString = args[index + 1];
-            _logger.Log($"Connection string initialized: {_connectionString}");
+            // Existing method: Retrieve connection string from process start arguments
+            string[] args = Environment.GetCommandLineArgs();
+            int index = Array.IndexOf(args, "--fxid");
+
+            if (index != -1 && index < args.Length - 1)
+            {
+                _connectionString = args[index + 1];
+            }
+            else
+            {
+                throw new ArgumentException("Connection string not found. Please provide it using the --fxid flag or pass it directly to the Initialize method.");
+            }
         }
         else
         {
-            throw new ArgumentException("Connection string not found. Please provide it using the --fxid flag.");
+            // New method: Use the provided connection string
+            _connectionString = connectionString;
         }
+
+        _logger.Log($"Connection string initialized: {_connectionString}");
 
         Connect();
 
@@ -67,6 +76,23 @@ public class FxidClientSDK
 
         _logger.Log("Connected and started fetching updates.");
     }
+    
+    public DateTimeOffset? GetServerTime()
+    {
+        if (_latestProfileResponse != null && _latestProfileResponse.ServerTimestamp > 0)
+        {
+            // Get the profile timestamp as DateTimeOffset
+            DateTimeOffset profileTimestamp = DateTimeOffset.FromUnixTimeSeconds(_latestProfileResponse.ServerTimestamp);
+            
+            TimeSpan elapsed = DateTimeOffset.UtcNow - profileTimestamp;
+            
+            // Add the elapsed time to the original server timestamp to get the current server time
+            return profileTimestamp.Add(elapsed);
+        }
+        
+        _logger.Log("Server time is not available yet. Wait for profile response to be fetched.");
+        return null;
+    }
 
     private async Task FetchUpdatesAsync(CancellationToken cancellationToken)
     {
@@ -90,46 +116,25 @@ public class FxidClientSDK
                         _logger.Log("Sending HTTP request...");
                         using (var response = await _httpClient.SendAsync(request, cancellationToken))
                         {
-                            //_logger.Log($"Received response with status code: {response.StatusCode}");
-
-                            // Log all response headers
-                            //_logger.Log("Response Headers:");
-                            // foreach (var header in response.Headers)
-                            // {
-                            //     _logger.Log($"{header.Key}: {string.Join(", ", header.Value)}");
-                            // }
-
-                            // Check content type
+                           
                             var contentType = response.Content.Headers.ContentType?.MediaType;
-                            //Console.WriteLine($"Content-Type: {contentType}");
-
-                            // if (contentType != "application/x-protobuf")
-                            // {
-                            //     Console.WriteLine(
-                            //         $"Warning: Expected content type 'application/x-protobuf', but received '{contentType}'");
-                            // }
-
+                           
                             response.EnsureSuccessStatusCode();
 
                             byte[] protobufData = await response.Content.ReadAsByteArrayAsync(cancellationToken);
-                            //Console.WriteLine($"Received data of length: {protobufData.Length}");
-
+                           
                             if (protobufData.Length == 0)
                             {
                                 throw new InvalidOperationException("Received empty data");
                             }
 
-                            // If content type is not protobuf, try to log the content as string
                             if (contentType != "application/x-protobuf")
                             {
                                 string content = System.Text.Encoding.UTF8.GetString(protobufData);
-                                //Console.WriteLine($"Received content: {content}");
                             }
 
-                            //Console.WriteLine("Attempting to parse protobuf data...");
                             ProfileResponse profileResponse = ProfileResponse.Parser.ParseFrom(protobufData);
-                            //Console.WriteLine($"Successfully parsed profile response: {profileResponse}");
-
+                           
                             // Update the latest profile response
                             _latestProfileResponse = profileResponse;
 
@@ -147,10 +152,8 @@ public class FxidClientSDK
                             if (!string.IsNullOrEmpty(_latestProfileResponse.RefreshUrl?.Address))
                             {
                                 _connectionString = _latestProfileResponse.RefreshUrl.Address;
-                                //  Console.WriteLine($"Updated connection string to: {_connectionString}");
                             }
 
-                            // Console.WriteLine($"Waiting {delayUntilNextFetch}ms before next fetch");
                             await Task.Delay((int)delayUntilNextFetch, cancellationToken);
                         }
                     }
